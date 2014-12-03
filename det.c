@@ -8,10 +8,11 @@
 #define TRUE 1
 #define FALSE 0
 
+int FindDetPara(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int my_rank, int p);
 int FindDet(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE] , int SizeOfMatrix);
 int Find2x2(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE] , int SizeOfMatrix);
 int FindMinorMatrix(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int xpos, int ypos, int MinorMatrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE]);
-void FindMatrixOfMinors(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int MatrixOfMinors[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE]);
+void FindMatrixOfMinors(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int MatrixOfMinors[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int my_rank, int p);
 void FindTransposedMatrix(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int TransposedMatrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE]);
 void ChangeSigns(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix);
 void PrintDecimalMatrix(float Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix);
@@ -27,6 +28,41 @@ void FindInverseMatrix(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMat
 	MPI_Status status;
 
 	/*each process calculates their part of det*/
+	Det = FindDetPara(Matrix, SizeOfMatrix, my_rank, p);
+	FindMatrixOfMinors(Matrix, SizeOfMatrix, MatrixOfMinors, my_rank, p);
+
+	/*Det = Find2x2(Matrix, SizeOfMatrix);*/
+	if(my_rank == 0){
+
+	if (SizeOfMatrix>2) {
+		/*FindMatrixOfMinors(Matrix, SizeOfMatrix, MatrixOfMinors);
+		printf("Matrix of minors:\n");
+		PrintMatrix(MatrixOfMinors, SizeOfMatrix);*/
+		ChangeSigns(MatrixOfMinors, SizeOfMatrix);
+		printf("Matrix of minors sign changed:\n");
+		PrintMatrix(MatrixOfMinors, SizeOfMatrix);
+		FindTransposedMatrix(MatrixOfMinors, SizeOfMatrix, TransposedMatrix);
+		printf("Matrix transposed:\n");
+		PrintMatrix(TransposedMatrix, SizeOfMatrix);
+
+
+		for(y = 0; y < SizeOfMatrix; y++){
+			for(x = 0; x < SizeOfMatrix; x++){
+				/*printf("Transpose=%d, Det=%d\n", TransposedMatrix[x][y], Det);*/
+				InverseMatrix[x][y] = (float)TransposedMatrix[x][y] * (1 / (float)Det);
+			}
+		}
+	} else { 
+		/* special case code for 2x2 matrix should go here */
+	}
+
+	}
+}
+
+int FindDetPara(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int my_rank, int p){
+	int Det, pos, i, power, source, tag, tmpDet, dest;
+	MPI_Status status;
+
 	Det = 0;
 	tmpDet = 0;
 	for(i = 0; ((my_rank + 1) + (p*i)) <= SizeOfMatrix; i++){
@@ -54,32 +90,7 @@ void FindInverseMatrix(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMat
 		MPI_Send(&Det, 1, MPI_INT, dest, tag, MPI_COMM_WORLD);
 	}
 
-	/*Det = Find2x2(Matrix, SizeOfMatrix);*/
-	if(my_rank == 0){
-
-	if (SizeOfMatrix>2) {
-		FindMatrixOfMinors(Matrix, SizeOfMatrix, MatrixOfMinors);
-		printf("Matrix of minors:\n");
-		PrintMatrix(MatrixOfMinors, SizeOfMatrix);
-		ChangeSigns(MatrixOfMinors, SizeOfMatrix);
-		printf("Matrix of minors sign changed:\n");
-		PrintMatrix(MatrixOfMinors, SizeOfMatrix);
-		FindTransposedMatrix(MatrixOfMinors, SizeOfMatrix, TransposedMatrix);
-		printf("Matrix transposed:\n");
-		PrintMatrix(TransposedMatrix, SizeOfMatrix);
-
-
-		for(y = 0; y < SizeOfMatrix; y++){
-			for(x = 0; x < SizeOfMatrix; x++){
-				/*printf("Transpose=%d, Det=%d\n", TransposedMatrix[x][y], Det);*/
-				InverseMatrix[x][y] = (float)TransposedMatrix[x][y] * (1 / (float)Det);
-			}
-		}
-	} else { 
-		/* special case code for 2x2 matrix should go here */
-	}
-
-	}
+	return Det;
 }
 
 int FindDet(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix){
@@ -124,14 +135,14 @@ int FindMinorMatrix(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix
 		}
 	}
 }
-void FindMatrixOfMinors(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int MatrixOfMinors[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE]){
+void FindMatrixOfMinors(int Matrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int SizeOfMatrix, int MatrixOfMinors[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE], int my_rank, int p){
 	int x , y;
 	int MinorMatrix[MAX_ARRAY_SIZE][MAX_ARRAY_SIZE];
 
 	for(y = 0; y < SizeOfMatrix; y++){
 		for(x = 0; x < SizeOfMatrix; x++){
 			FindMinorMatrix(Matrix, SizeOfMatrix, x, y, MinorMatrix);
-			MatrixOfMinors[x][y] = Find2x2(MinorMatrix, SizeOfMatrix - 1);
+			MatrixOfMinors[x][y] = FindDetPara(MinorMatrix, SizeOfMatrix - 1, my_rank, p);
 		}
 	}
 }
